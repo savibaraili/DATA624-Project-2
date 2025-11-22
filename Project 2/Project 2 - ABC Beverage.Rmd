@@ -381,6 +381,96 @@ write_xlsx(output_df, "PH_Model_Predictions.xlsx")
 cat("Predictions have been exported to 'PH_Model_Predictions.xlsx'.")
 ```
 
-## Feature Importance and SHAP Values
+
+
+
+# Feature Importance and SHAP Values
+
+This section evaluates which production variables have the strongest impact on predicting pH, based on the final XGBoost interpretability model. We first present global feature importance using XGBoost’s built-in scoring, followed by SHAP (Shapley Additive Explanations) which explains how each variable influences the model’s predictions.
+
+---
+
+
+
+```{r}
+# XGBoost training for interpretability
+library(xgboost)
+df2 <- df_imputed
+dummies <- model.matrix(PH ~ . - 1, data = df2)
+X <- dummies
+y <- df2$PH
+dmat <- xgb.DMatrix(data = X, label = y)
+params <- list(objective="reg:squarederror", eta=0.1, max_depth=6)
+xgb_fit2 <- xgb.train(params=params, data=dmat, nrounds=200, verbose=0)
+```
+
+## 1. XGBoost Feature Importance
+
+The XGBoost feature importance plot identifies the variables that contribute the most to predicting pH. Features at the top have the highest relative importance and drive the majority of the predictive power.
+
+```{r}
+library(xgboost)
+library(SHAPforxgboost)
+
+importance_df <- xgb.importance(model = xgb_fit2)
+
+xgb.plot.importance(
+  importance_matrix = importance_df,
+  top_n = 20,
+  rel_to_first = TRUE,
+  main = "Top 20 Feature Importances (XGBoost)",
+  xlab = "Relative Importance"
+)
+```
+
+---
+
+## 2. SHAP Value Analysis
+
+SHAP values measure how much each feature pushes the prediction higher or lower from the baseline pH value. This provides a more detailed, model-agnostic explanation of how the XGBoost model makes decisions.
+
+### Compute SHAP Values
+
+```{r}
+shap_vals <- shap.values(
+  xgb_model = xgb_fit2,
+  X_train = X
+)
+
+shap_long <- shap.prep(
+  xgb_model = xgb_fit2,
+  X_train = X
+)
+```
+
+### SHAP Summary Plot
+
+```{r}
+shap.plot.summary(shap_long)
+```
+
+The SHAP summary plot shows:
+
+- **High feature values (purple)** and **low feature values (yellow)**.  
+- Points to the **right** increase predicted pH.  
+- Points to the **left** decrease predicted pH.  
+- The vertical spread indicates the magnitude of impact.  
+
+---
+
+# Interpretation of Feature Importance and SHAP Values
+
+## Feature Importance Interpretation
+The XGBoost feature importance results show that variables such as **Mnf Flow**, **Usage Control**, **Brand Code C**, **Alch Rel**, and **Oxygen Filter** are the strongest predictors of pH. These features have the highest relative importance scores, indicating that they consistently influence pH across the dataset.
+
+## SHAP Interpretation
+SHAP provides a deeper view of how individual values of each predictor affect the pH prediction:
+
+- **High feature values** tend to increase pH for some variables and decrease it for others.  
+- **Low feature values** push predictions in the opposite direction.  
+- SHAP confirms that the relationship between production variables and pH is **non-linear**, supporting XGBoost’s superior performance.
+
+## Overall Interpretation
+Together, feature importance and SHAP values show that pH is influenced by a combination of operational factors such as flow, pressure, chemical levels, and brand characteristics. SHAP adds clarity by showing not only *which* variables matter, but *how* they affect predictions. This supports operational decision-making by pinpointing which factors have the strongest influence on stabilizing pH during manufacturing.
 
 
